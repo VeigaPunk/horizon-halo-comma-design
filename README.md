@@ -10,6 +10,8 @@
 
 Communicate openpilot confidence as a **continuous peripheral Horizon Halo** plus always-on **actuator headroom** (steer / brake / accel), with sound only on class transitions and saturation — not as a nagging alert.
 
+**Hardware target:** **comma four** (primary; post-Qt modern UI stack). Also readable on windshield-mounted 3X.
+
 ## Open
 
 Open `index.html` or the live demo URL above.
@@ -18,3 +20,4 @@ Open `index.html` or the live demo URL above.
 
 - Google Form: https://forms.gle/US88Hg7UR6bBuW3BA  
 - Email: work@comma.ai (per comma jobs process)
+- Website LB PR: https://github.com/commaai/website/pull/335

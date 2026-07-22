@@ -4,11 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <meta property="og:title" content="Horizon Halo — openpilot confidence UI (comma design)" />
-<meta property="og:description" content="Peripheral continuous confidence + actuator headroom for comma 3X / openpilot. QT-flat interactive mock." />
+<meta property="og:description" content="Peripheral continuous confidence + actuator headroom for comma four / openpilot. Interactive mock." />
 <meta property="og:url" content="https://veigapunk.github.io/horizon-halo-comma-design/" />
 <meta name="twitter:card" content="summary_large_image" />
 <title>openpilot · Horizon Halo — confidence UI (comma design challenge)</title>
-<meta name="description" content="Horizon Halo: peripheral confidence + actuator headroom for comma 3X / openpilot. QT-flat, glanceable, continuous spectrum." />
+<meta name="description" content="Horizon Halo: peripheral confidence + actuator headroom for comma four / openpilot. Glanceable continuous spectrum." />
 <style>
   :root {
     --bg: #0a0c0a;
@@ -70,7 +70,7 @@
     .grid-2 { grid-template-columns: 1fr; }
   }
 
-  /* ---- Device frame (3X-ish landscape windshield mount) ---- */
+  /* ---- Device frame (comma four landscape display) ---- */
   .device-wrap {
     display: flex;
     flex-direction: column;
@@ -379,8 +379,8 @@
   <header>
     <div style="margin-bottom:10px">
       <span class="badge">comma design challenge</span>
-      <span class="badge dark">openpilot · 3X</span>
-      <span class="badge dark">QT-flat</span>
+      <span class="badge dark">openpilot · comma four</span>
+      <span class="badge dark">modern UI stack</span>
     </div>
     <h1>Horizon Halo — confidence at a glance, headroom before the alarm</h1>
     <p class="tagline">
@@ -394,8 +394,9 @@
     <p>
       openpilot is L2 and already self-aware about failure likelihood and actuator saturation.
       Today, drivers often learn about trouble <em>at</em> the alert — too late for calm intervention,
-      and the alert itself is more annoying than useful. The 3X is windshield-mounted: eyes stay on the road;
-      the UI must work in peripheral vision with a flat QT stack.
+      and the alert itself is more annoying than useful. <strong>comma four</strong> is the headlining hardware:
+      eyes stay on the road; the UI must work in peripheral vision on a modern non-Qt stack
+      (flat solid fills still preferred for readability in cabin light).
     </p>
     <div class="callout">
       <strong>Design thesis:</strong> confidence is a continuous spectrum rendered as ambient geometry (halo + path fill).
@@ -405,9 +406,9 @@
   </section>
 
   <section>
-    <h2>2. Interactive 3X mock (you are the world model)</h2>
+    <h2>2. Interactive comma four mock (you are the world model)</h2>
     <div class="device-wrap">
-      <div class="device" id="device" aria-label="comma 3X confidence UI mock">
+      <div class="device" id="device" aria-label="comma four confidence UI mock">
         <div class="road"></div>
         <div class="horizon-line"></div>
         <div class="path" id="path"></div>
@@ -517,7 +518,7 @@
           <li><code>c &lt; 0.38</code> → UNRELIABLE</li>
         </ul>
         <p>
-          Color interpolates green→amber→red in OKLab-ish HSL for QT QColor friendliness.
+          Color interpolates green→amber→red in OKLab-ish HSL (easy on any modern UI toolkit).
           Peripheral edges fire motion-sensitive receptors without covering the road camera plate.
         </p>
       </div>
@@ -560,8 +561,8 @@
   <section>
     <h2>6. Constraints honored</h2>
     <ul>
-      <li><strong>3X windshield:</strong> critical state lives in periphery + lower third; center stays camera/road.</li>
-      <li><strong>QT flat UI:</strong> rectangles, solid fills, no glassmorphism, no 3D chrome — drawable with QPainter / QML Rectangle.</li>
+      <li><strong>comma four first:</strong> critical state lives in periphery + lower third; center stays camera/road. Design also works on 3X mounts.</li>
+      <li><strong>Modern flat UI (post-Qt):</strong> rectangles, solid fills, no glassmorphism, no 3D chrome — implementable in current openpilot UI stack.</li>
       <li><strong>Glanceable:</strong> color + edge intensity encode class without reading text; labels are secondary.</li>
       <li><strong>Non-intrusive:</strong> continuous amber is silent; only transitions and saturation speak.</li>
     </ul>
@@ -572,13 +573,13 @@
     <p>
       Existing entries solve pieces well (dials, Figma systems, narrative writeups). Horizon Halo
       unifies the brief’s two requirements — <em>confidence spectrum</em> and <em>limit proximity</em> —
-      into one QT-implementable HUD with an interactive falsifiable demo, explicit signal mapping,
+      into one implementable HUD for comma four with an interactive falsifiable demo, explicit signal mapping,
       and a sound policy that reduces annoyance (the brief’s own complaint about today’s alerts).
     </p>
   </section>
 
   <footer>
-    <div>Horizon Halo · VeigaPunk · 2026-07-22</div>
+    <div>Horizon Halo · VeigaPunk · 2026-07-22 · revised for comma four (post-Qt)</div>
     <div>Spec: <a href="https://raw.githubusercontent.com/commaai/jobs/refs/heads/master/design.md">design.md</a>
       · Hub: <a href="https://comma.ai/leaderboard#design_challenge">comma.ai/leaderboard#design_challenge</a>
       · Submit: <a href="https://forms.gle/US88Hg7UR6bBuW3BA">Google Form</a></div>
