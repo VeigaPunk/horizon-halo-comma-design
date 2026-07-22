@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>openpilot · Horizon Halo — confidence UI (comma design challenge)</title>
+<meta name="description" content="Horizon Halo: peripheral confidence + actuator headroom for comma 3X / openpilot. QT-flat, glanceable, continuous spectrum." />
+<style>
+  :root {
+    --bg: #0a0c0a;
+    --fg: #e8f0e6;
+    --muted: #7a8a78;
+    --green: #51ff00;
+    --amber: #ffb020;
+    --red: #ff3b30;
+    --cyan: #3de0ff;
+    --panel: #121612;
+    --border: #1e281e;
+    --safe: #51ff00;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #050605;
+    color: var(--fg);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    min-height: 100%;
+  }
+  a { color: var(--green); }
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+  }
+  header h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0 0 6px;
+  }
+  header .tagline { color: var(--muted); font-size: 0.95rem; margin: 0 0 18px; }
+  .badge {
+    display: inline-block;
+    background: var(--green);
+    color: #000;
+    font-weight: 700;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    margin-right: 6px;
+  }
+  .badge.dark { background: #000; color: var(--green); border: 1px solid var(--green); }
+  section {
+    margin: 28px 0;
+    border-top: 1px solid #222;
+    padding-top: 18px;
+  }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; color: var(--green); }
+  h3 { font-size: 0.95rem; margin: 16px 0 8px; }
+  p, li { line-height: 1.55; font-size: 0.92rem; color: #c5d0c3; }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 820px) {
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Device frame (3X-ish landscape windshield mount) ---- */
+  .device-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .device {
+    width: min(100%, 720px);
+    aspect-ratio: 16 / 10;
+    background: #101410;
+    border: 2px solid #2a332a;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 0 6px #0a0c0a, 0 24px 60px rgba(0,0,0,.55);
+  }
+  /* road / camera plate */
+  .road {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(180deg, #1a2830 0%, #243238 35%, #2c3a30 100%);
+  }
+  .road::before {
+    content: "";
+    position: absolute;
+    left: 50%; bottom: 0;
+    width: 140%; height: 55%;
+    transform: translateX(-50%);
+    background:
+      linear-gradient(180deg, transparent, rgba(0,0,0,.35)),
+      repeating-linear-gradient(
+        90deg,
+        transparent 0 46px,
+        rgba(255,255,255,.08) 46px 48px
+      );
+    clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+    opacity: .7;
+  }
+  .horizon-line {
+    position: absolute;
+    left: 8%; right: 8%;
+    top: 42%;
+    height: 1px;
+    background: rgba(255,255,255,.12);
+  }
+
+  /* Horizon Halo — primary confidence (peripheral + continuous) */
+  .halo {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    --conf: 0.85; /* 0..1 */
+    --hcol: #51ff00;
+  }
+  .halo .edge {
+    position: absolute;
+    opacity: calc(0.25 + (1 - var(--conf)) * 0.55);
+    transition: opacity 180ms linear, box-shadow 180ms linear, background 180ms linear;
+  }
+  .halo .top, .halo .bottom {
+    left: 0; right: 0; height: 10px;
+    background: linear-gradient(var(--hcol), transparent);
+  }
+  .halo .bottom { bottom: 0; top: auto; background: linear-gradient(transparent, var(--hcol)); }
+  .halo .top { top: 0; }
+  .halo .left, .halo .right {
+    top: 0; bottom: 0; width: 10px;
+    background: linear-gradient(90deg, var(--hcol), transparent);
+  }
+  .halo .right { right: 0; left: auto; background: linear-gradient(270deg, var(--hcol), transparent); }
+  .halo .left { left: 0; }
+  /* soft bloom for low confidence */
+  .halo.bloom {
+    box-shadow: inset 0 0 48px color-mix(in srgb, var(--hcol) 55%, transparent);
+  }
+
+  /* path ribbon — confidence of lane/trajectory model */
+  .path {
+    position: absolute;
+    left: 50%;
+    bottom: 12%;
+    width: 38%;
+    height: 48%;
+    transform: translateX(-50%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--hcol) 0%, transparent),
+      color-mix(in srgb, var(--hcol) calc(var(--conf) * 55%), transparent)
+    );
+    clip-path: polygon(35% 0, 65% 0, 92% 100%, 8% 100%);
+    filter: blur(0.2px);
+    transition: background 160ms linear, opacity 160ms linear;
+    opacity: calc(0.35 + var(--conf) * 0.55);
+  }
+
+  /* HUD stack */
+  .hud {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    padding: 14px 16px 12px;
+    pointer-events: none;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .state-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,.55);
+    border: 1px solid #2a332a;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .state-chip .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--hcol);
+    box-shadow: 0 0 8px var(--hcol);
+  }
+  .speed {
+    text-align: right;
+    background: rgba(0,0,0,.45);
+    border-radius: 4px;
+    padding: 4px 10px;
+    border: 1px solid #2a332a;
+  }
+  .speed .num { font-size: 1.6rem; line-height: 1; color: #fff; }
+  .speed .unit { font-size: 0.7rem; color: var(--muted); }
+
+  /* Headroom bars — torque / brake / accel limits */
+  .headroom {
+    display: flex;
+    gap: 10px;
+    align-self: end;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .hr-item {
+    width: 64px;
+    background: rgba(0,0,0,.55);
+    border: 1px solid #2a332a;
+    border-radius: 4px;
+    padding: 6px 6px 8px;
+    text-align: center;
+  }
+  .hr-item label {
+    display: block;
+    font-size: 0.62rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+  .bar {
+    height: 44px;
+    width: 100%;
+    background: #1a201a;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar .fill {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: var(--u, 30%);
+    background: var(--c, var(--cyan));
+    transition: height 120ms linear, background 120ms linear;
+  }
+  .bar .limit {
+    position: absolute;
+    left: 0; right: 0;
+    top: 8%;
+    border-top: 1px dashed rgba(255,59,48,.7);
+  }
+  .bar.warn .fill { background: var(--amber); }
+  .bar.crit .fill { background: var(--red); }
+
+  /* engagement ring around speed for disengage readiness */
+  .engage {
+    position: absolute;
+    left: 50%;
+    bottom: 22%;
+    transform: translateX(-50%);
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 3px solid color-mix(in srgb, var(--hcol) 80%, #000);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 0 18px color-mix(in srgb, var(--hcol) 35%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,.35);
+    transition: border-color 160ms linear, box-shadow 160ms linear;
+  }
+  .engage .label {
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    color: #fff;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  /* alert toast — only for imminent / saturation, not spam */
+  .toast {
+    position: absolute;
+    top: 56px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.78);
+    border-left: 4px solid var(--red);
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    opacity: 0;
+    transition: opacity 200ms;
+    max-width: 80%;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+
+  /* controls */
+  .controls {
+    width: min(100%, 720px);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .controls h3 { margin-top: 0; color: var(--fg); }
+  .row {
+    display: grid;
+    grid-template-columns: 140px 1fr 48px;
+    gap: 10px;
+    align-items: center;
+    margin: 8px 0;
+    font-size: 0.82rem;
+  }
+  input[type=range] { width: 100%; accent-color: var(--green); }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button.preset {
+    background: #000;
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  button.preset:hover { background: #51ff0022; }
+  button.preset:active { background: var(--green); color: #000; }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+  @media (max-width: 640px) { .legend { grid-template-columns: 1fr; } }
+  .leg {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    background: #0d100d;
+  }
+  .leg strong { display: block; margin-bottom: 4px; font-size: 0.85rem; }
+  .swatch {
+    height: 6px; border-radius: 2px; margin-bottom: 8px;
+  }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #222;
+    vertical-align: top;
+  }
+  table.spec th { color: var(--muted); font-weight: 500; width: 28%; }
+
+  .callout {
+    border-left: 3px solid var(--green);
+    background: #0d140d;
+    padding: 12px 14px;
+    margin: 12px 0;
+  }
+  footer {
+    margin-top: 40px;
+    color: var(--muted);
+    font-size: 0.8rem;
+    border-top: 1px solid #222;
+    padding-top: 16px;
+  }
+  code { color: #b8f5a0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div style="margin-bottom:10px">
+      <span class="badge">comma design challenge</span>
+      <span class="badge dark">openpilot · 3X</span>
+      <span class="badge dark">QT-flat</span>
+    </div>
+    <h1>Horizon Halo — confidence at a glance, headroom before the alarm</h1>
+    <p class="tagline">
+      Submission by <strong>VeigaPunk</strong> · interactive prototype + design rationale ·
+      for the <a href="https://raw.githubusercontent.com/commaai/jobs/refs/heads/master/design.md">comma design challenge</a>
+    </p>
+  </header>
+
+  <section>
+    <h2>1. Problem reframed</h2>
+    <p>
+      openpilot is L2 and already self-aware about failure likelihood and actuator saturation.
+      Today, drivers often learn about trouble <em>at</em> the alert — too late for calm intervention,
+      and the alert itself is more annoying than useful. The 3X is windshield-mounted: eyes stay on the road;
+      the UI must work in peripheral vision with a flat QT stack.
+    </p>
+    <div class="callout">
+      <strong>Design thesis:</strong> confidence is a continuous spectrum rendered as ambient geometry (halo + path fill).
+      Actuator limits are always-on headroom meters. Sound is reserved for <em>rate-of-change</em> and
+      <em>saturation events</em>, never for steady mid confidence.
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Interactive 3X mock (you are the world model)</h2>
+    <div class="device-wrap">
+      <div class="device" id="device" aria-label="comma 3X confidence UI mock">
+        <div class="road"></div>
+        <div class="horizon-line"></div>
+        <div class="path" id="path"></div>
+        <div class="halo" id="halo">
+          <div class="edge top"></div>
+          <div class="edge bottom"></div>
+          <div class="edge left"></div>
+          <div class="edge right"></div>
+        </div>
+        <div class="hud">
+          <div class="topbar">
+            <div class="state-chip"><span class="dot" id="dot"></span><span id="stateLabel">RELIABLE</span></div>
+            <div class="speed"><div class="num" id="spd">62</div><div class="unit">mph</div></div>
+          </div>
+          <div></div>
+          <div class="headroom">
+            <div class="hr-item">
+              <label>STEER</label>
+              <div class="bar" id="barSteer"><div class="fill"></div><div class="limit"></div></div>
+            </div>
+            <div class="hr-item">
+              <label>BRAKE</label>
+              <div class="bar" id="barBrake"><div class="fill"></div><div class="limit"></div></div>
+            </div>
+            <div class="hr-item">
+              <label>ACCEL</label>
+              <div class="bar" id="barAccel"><div class="fill"></div><div class="limit"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="engage" id="engage"><div class="label" id="engageLabel">ENGAGED<br/>HOLD</div></div>
+        <div class="toast" id="toast">TAKE OVER — low confidence</div>
+      </div>
+
+      <div class="controls">
+        <h3>Live controls</h3>
+        <div class="row">
+          <label for="conf">Model confidence</label>
+          <input id="conf" type="range" min="0" max="100" value="88" />
+          <span id="confV">88</span>
+        </div>
+        <div class="row">
+          <label for="steer">Steer usage</label>
+          <input id="steer" type="range" min="0" max="100" value="28" />
+          <span id="steerV">28</span>
+        </div>
+        <div class="row">
+          <label for="brake">Brake usage</label>
+          <input id="brake" type="range" min="0" max="100" value="12" />
+          <span id="brakeV">12</span>
+        </div>
+        <div class="row">
+          <label for="accel">Accel usage</label>
+          <input id="accel" type="range" min="0" max="100" value="22" />
+          <span id="accelV">22</span>
+        </div>
+        <div class="row">
+          <label for="speed">Speed (mph)</label>
+          <input id="speed" type="range" min="0" max="90" value="62" />
+          <span id="speedV">62</span>
+        </div>
+        <div class="presets">
+          <button class="preset" data-p="highway">Highway stable</button>
+          <button class="preset" data-p="rain">Rain / degraded</button>
+          <button class="preset" data-p="curve">Tight curve near torque</button>
+          <button class="preset" data-p="fail">Imminent fail</button>
+          <button class="preset" data-p="cutin">Hard brake cut-in</button>
+        </div>
+        <p style="margin:12px 0 0;font-size:0.78rem;color:var(--muted)">
+          Sound: soft tick only when confidence <em>drops across</em> a class boundary, or when any actuator
+          enters the top 15% of limit. No looping chime in steady amber.
+        </p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="leg">
+        <div class="swatch" style="background:linear-gradient(90deg,#51ff00,#3de0ff)"></div>
+        <strong>Reliable</strong>
+        Disengage &lt; once / 10 min. Cool green halo, strong path fill, quiet headroom.
+      </div>
+      <div class="leg">
+        <div class="swatch" style="background:linear-gradient(90deg,#ffb020,#ff8a00)"></div>
+        <strong>Contingent</strong>
+        May need hands every few minutes. Amber bloom; path thins; subtle edge emphasis.
+      </div>
+      <div class="leg">
+        <div class="swatch" style="background:linear-gradient(90deg,#ff3b30,#ff6b5a)"></div>
+        <strong>Unreliable</strong>
+        Seconds to disengage. Red halo + toast + one short double-tick; engage ring pulses.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. System</h2>
+    <div class="grid-2">
+      <div>
+        <h3>Horizon Halo (confidence)</h3>
+        <p>
+          Screen-edge glow + trajectory ribbon share one continuous confidence scalar
+          <code>c ∈ [0,1]</code> (not three discrete LEDs). Classes are soft bands for copy/sound only:
+        </p>
+        <ul>
+          <li><code>c ≥ 0.72</code> → RELIABLE</li>
+          <li><code>0.38 ≤ c &lt; 0.72</code> → CONTINGENT</li>
+          <li><code>c &lt; 0.38</code> → UNRELIABLE</li>
+        </ul>
+        <p>
+          Color interpolates green→amber→red in OKLab-ish HSL for QT QColor friendliness.
+          Peripheral edges fire motion-sensitive receptors without covering the road camera plate.
+        </p>
+      </div>
+      <div>
+        <h3>Headroom meters (actuator limits)</h3>
+        <p>
+          Three always-visible bars: steer torque, brake pressure, longitudinal accel.
+          Fill = fraction of car-specific limit currently commanded. Dashed line = soft limit
+          (start of nonlinear tire / ABS / ESC region). Color flips amber at 70%, red at 90%.
+        </p>
+        <p>
+          This is the missing “pre-alert” channel: the driver sees torque climbing on a windy ramp
+          <em>before</em> the classic “steering temporarily unavailable” bark.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Sound (alluded + implementable)</h2>
+    <table class="spec">
+      <tr><th>Event</th><td>One soft rising tick (120ms) on class down-transition only.</td></tr>
+      <tr><th>Actuator</th><td>Short double tick when any bar first crosses 85% within a 2s window.</td></tr>
+      <tr><th>Imminent</th><td><code>c &lt; 0.25</code> or multi-bar critical → one double-tick + toast; no loop until recovery then re-arm.</td></tr>
+      <tr><th>Non-goals</th><td>No continuous hum, no speech, no music, no per-frame beeps.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. Mapping to openpilot signals</h2>
+    <table class="spec">
+      <tr><th>UI input</th><td>Suggested source</td></tr>
+      <tr><th>confidence <code>c</code></td><td>Blend of model uncertainty, desire lane visibility, lead existence prob, road-edge, and historical disengage prior for scene class.</td></tr>
+      <tr><th>steer usage</td><td><code>|steer_torque| / car_torque_max</code> (already known per fingerprint).</td></tr>
+      <tr><th>brake / accel</td><td>Long control output vs car accel/brake caps; include regen envelope if present.</td></tr>
+      <tr><th>engaged ring</td><td>Existing engaged state + soft hands-on / wheel torque presence.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>6. Constraints honored</h2>
+    <ul>
+      <li><strong>3X windshield:</strong> critical state lives in periphery + lower third; center stays camera/road.</li>
+      <li><strong>QT flat UI:</strong> rectangles, solid fills, no glassmorphism, no 3D chrome — drawable with QPainter / QML Rectangle.</li>
+      <li><strong>Glanceable:</strong> color + edge intensity encode class without reading text; labels are secondary.</li>
+      <li><strong>Non-intrusive:</strong> continuous amber is silent; only transitions and saturation speak.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Why this can beat the current board</h2>
+    <p>
+      Existing entries solve pieces well (dials, Figma systems, narrative writeups). Horizon Halo
+      unifies the brief’s two requirements — <em>confidence spectrum</em> and <em>limit proximity</em> —
+      into one QT-implementable HUD with an interactive falsifiable demo, explicit signal mapping,
+      and a sound policy that reduces annoyance (the brief’s own complaint about today’s alerts).
+    </p>
+  </section>
+
+  <footer>
+    <div>Horizon Halo · VeigaPunk · 2026-07-22</div>
+    <div>Spec: <a href="https://raw.githubusercontent.com/commaai/jobs/refs/heads/master/design.md">design.md</a>
+      · Hub: <a href="https://comma.ai/leaderboard#design_challenge">comma.ai/leaderboard#design_challenge</a>
+      · Submit: <a href="https://forms.gle/US88Hg7UR6bBuW3BA">Google Form</a></div>
+    <div>Source of this page ships as a static Space / repo for comma review.</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const conf = $("conf"), steer = $("steer"), brake = $("brake"), accel = $("accel"), speed = $("speed");
+  const confV = $("confV"), steerV = $("steerV"), brakeV = $("brakeV"), accelV = $("accelV"), speedV = $("speedV");
+  const halo = $("halo"), path = $("path"), stateLabel = $("stateLabel"), toast = $("toast");
+  const engage = $("engage"), engageLabel = $("engageLabel"), spd = $("spd");
+
+  let lastClass = null;
+  let lastActCrit = false;
+  let audioCtx = null;
+
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+    }
+    return audioCtx;
+  }
+  function beep(freq, dur, type, gain) {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.value = gain || 0.04;
+    o.connect(g); g.connect(ctx.destination);
+    const t = ctx.currentTime;
+    g.gain.setValueAtTime(gain || 0.04, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function tickSoft() { beep(520, 0.12, "triangle", 0.035); }
+  function tickDouble() {
+    beep(440, 0.08, "square", 0.03);
+    setTimeout(() => beep(660, 0.1, "square", 0.035), 100);
+  }
+
+  function lerpColor(c) {
+    // c 0..1 → red → amber → green
+    // piecewise HSL
+    let h, s = 90, l = 52;
+    if (c >= 0.72) {
+      // green
+      h = 100 + (c - 0.72) * 40;
+      l = 50;
+    } else if (c >= 0.38) {
+      // amber zone
+      const t = (c - 0.38) / (0.72 - 0.38);
+      h = 28 + t * (100 - 28);
+      l = 52;
+    } else {
+      const t = c / 0.38;
+      h = 8 + t * 20;
+      l = 52;
+    }
+    return `hsl(${h} ${s}% ${l}%)`;
+  }
+
+  function className(c) {
+    if (c >= 0.72) return "RELIABLE";
+    if (c >= 0.38) return "CONTINGENT";
+    return "UNRELIABLE";
+  }
+
+  function setBar(el, pct) {
+    const fill = el.querySelector(".fill");
+    fill.style.setProperty("--u", pct + "%");
+    el.classList.remove("warn", "crit");
+    if (pct >= 90) el.classList.add("crit");
+    else if (pct >= 70) el.classList.add("warn");
+    fill.style.background = pct >= 90 ? "var(--red)" : pct >= 70 ? "var(--amber)" : "var(--cyan)";
+  }
+
+  function render() {
+    const c = conf.value / 100;
+    const col = lerpColor(c);
+    confV.textContent = conf.value;
+    steerV.textContent = steer.value;
+    brakeV.textContent = brake.value;
+    accelV.textContent = accel.value;
+    speedV.textContent = speed.value;
+    spd.textContent = speed.value;
+
+    document.documentElement.style.setProperty("--hcol", col);
+    halo.style.setProperty("--conf", c);
+    halo.style.setProperty("--hcol", col);
+    path.style.setProperty("--conf", c);
+    path.style.setProperty("--hcol", col);
+    engage.style.borderColor = col;
+    engage.style.boxShadow = `0 0 0 1px rgba(0,0,0,.5), 0 0 18px ${col}55`;
+
+    if (c < 0.55) halo.classList.add("bloom");
+    else halo.classList.remove("bloom");
+
+    const cls = className(c);
+    stateLabel.textContent = cls;
+    if (cls === "UNRELIABLE") {
+      engageLabel.innerHTML = "TAKE<br/>OVER";
+      toast.classList.add("show");
+    } else if (cls === "CONTINGENT") {
+      engageLabel.innerHTML = "ENGAGED<br/>READY";
+      toast.classList.remove("show");
+    } else {
+      engageLabel.innerHTML = "ENGAGED<br/>HOLD";
+      toast.classList.remove("show");
+    }
+
+    setBar($("barSteer"), +steer.value);
+    setBar($("barBrake"), +brake.value);
+    setBar($("barAccel"), +accel.value);
+
+    if (lastClass && lastClass !== cls) {
+      const order = { RELIABLE: 2, CONTINGENT: 1, UNRELIABLE: 0 };
+      if (order[cls] < order[lastClass]) {
+        if (cls === "UNRELIABLE") tickDouble();
+        else tickSoft();
+      }
+    }
+    lastClass = cls;
+
+    const actCrit = [steer, brake, accel].some((x) => +x.value >= 85);
+    if (actCrit && !lastActCrit) tickDouble();
+    lastActCrit = actCrit;
+  }
+
+  [conf, steer, brake, accel, speed].forEach((el) => el.addEventListener("input", render));
+
+  const presets = {
+    highway: { conf: 92, steer: 22, brake: 8, accel: 18, speed: 68 },
+    rain: { conf: 55, steer: 35, brake: 20, accel: 15, speed: 48 },
+    curve: { conf: 70, steer: 88, brake: 10, accel: 12, speed: 42 },
+    fail: { conf: 18, steer: 40, brake: 25, accel: 10, speed: 35 },
+    cutin: { conf: 48, steer: 30, brake: 92, accel: 5, speed: 55 },
+  };
+  document.querySelectorAll("button.preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      ensureAudio();
+      const p = presets[btn.dataset.p];
+      conf.value = p.conf; steer.value = p.steer; brake.value = p.brake;
+      accel.value = p.accel; speed.value = p.speed;
+      render();
+    });
+  });
+
+  // unlock audio on first gesture
+  window.addEventListener("pointerdown", () => ensureAudio(), { once: true });
+  render();
+})();
+</script>
+</body>
+</html>
